@@ -2,6 +2,7 @@ package com.nn.jwt_java;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.content.Context;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.TextView;
@@ -30,10 +31,14 @@ public class MainActivity extends AppCompatActivity {
     private TextView textViewResult;
     private LinkAPI linkAPI;
 
+    private Context context;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        context=this;
 
         textViewResult=findViewById(R.id.text_view_result);
 
@@ -91,6 +96,8 @@ public class MainActivity extends AppCompatActivity {
         header.put("Authorization","Bearer "+authResponse.getAccess_token());
 
         ArrayList<ConfigFiles> configFiles= new ArrayList<ConfigFiles>();
+
+
         UpdateRequest updateRequest= new UpdateRequest(
                 "123456",
                 "Wayfarer6",
@@ -163,22 +170,7 @@ public class MainActivity extends AppCompatActivity {
                 fileArray
         );
 
-//        Map<String,String> parameters=new HashMap<>();
-//        parameters.put("deviceSn",downloadRequest.getDeviceSn());
-//        parameters.put("modelId",downloadRequest.getModelId());
-//        if(downloadRequest.isCompress())
-//            parameters.put("compress","true");
-//        else
-//            parameters.put("compress","false");
 //
-//        for(Integer i:downloadRequest.getConfigFiles() ){
-//            parameters.put("configFiles",i.toString());
-//            textViewResult.append("file :"+i.toString()+"\n");
-//        }
-
-  //      textViewResult.append("\n\nheader: " + new Gson().toJson(header)+"\n\n");
-  //      textViewResult.append("\n\nparameters: " + new Gson().toJson(parameters)+"\n\n");
-
         Call<ResponseBody> call=linkAPI.downloadFiles(header,
                 downloadRequest.getDeviceSn(),
                 downloadRequest.getModelId(),
@@ -190,12 +182,29 @@ public class MainActivity extends AppCompatActivity {
 
                 if(response.isSuccessful()){
                     Log.d("NN", "server contacted and has file");
-                    boolean writtenToDisk = writeResponseBodyToDisk(response.body());
+                    boolean writtenToDisk = writeResponseBodyToDisk(response.body(),context.getFilesDir() + File.separator +"Download"+ File.separator + "package.zip");
 
-                    if(writtenToDisk)
-                        textViewResult.append("download successful");
+                    if(writtenToDisk) {
+                        textViewResult.append("download successful\n");
+
+                        Zip zip=new Zip();
+
+                        if(zip.unzipFile(context.getFilesDir() + File.separator+"Download"+ File.separator + "package.zip",context.getFilesDir() + File.separator+"cfg"))
+                            textViewResult.append("unzip successful\n");
+                        else
+                            textViewResult.append("unzip error\n");
+
+                        //zip dir test
+                        File dir = new File(context.getFilesDir() + File.separator+"cfg");
+                        String zipDirName = context.getFilesDir() + File.separator+"Upload"+File.separator+"dir.zip";
+
+                        if(zip.zipAllFiles(dir,zipDirName))
+                            textViewResult.append("zip dir successful\n");
+                        else
+                            textViewResult.append("zip error\n");
+                    }
                     else
-                        textViewResult.append("download error");
+                        textViewResult.append("download error\n");
 
                 }
 
@@ -212,10 +221,11 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    private boolean writeResponseBodyToDisk(ResponseBody body) {
+    private boolean writeResponseBodyToDisk(ResponseBody body,String path) {
         try {
             // todo change the file location/name according to your needs
-            File zipFile = new File(getExternalFilesDir(null) + File.separator + "package.zip");
+            //File zipFile = new File(getExternalFilesDir(null) + File.separator + "package.zip");
+            File zipFile = new File(path);
 
             textViewResult.append(zipFile.getPath()+"\n\n");
 
@@ -229,7 +239,7 @@ public class MainActivity extends AppCompatActivity {
                 long fileSizeDownloaded = 0;
 
                 inputStream = body.byteStream();
-                outputStream = new FileOutputStream(zipFile);
+                outputStream = new FileOutputStream(zipFile,false);
 
                 while (true) {
                     int read = inputStream.read(fileReader);
