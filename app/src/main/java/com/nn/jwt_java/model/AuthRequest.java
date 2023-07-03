@@ -1,4 +1,4 @@
-package com.nn.jwt_java;
+package com.nn.jwt_java.model;
 
 public class AuthRequest {
 

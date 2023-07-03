@@ -3,22 +3,38 @@ package com.nn.jwt_java;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.content.Context;
+import android.net.Uri;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.util.Log;
 import android.widget.TextView;
 
-import com.google.gson.Gson;
+import com.nn.jwt_java.model.AuthRequest;
+import com.nn.jwt_java.model.AuthResponse;
+import com.nn.jwt_java.model.ConfigFileUpdates;
+import com.nn.jwt_java.model.ConfigFiles;
+import com.nn.jwt_java.model.DownloadRequest;
+import com.nn.jwt_java.model.UpdateRequest;
+import com.nn.jwt_java.model.UpdateResponse;
+import com.nn.jwt_java.model.UploadRequest;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.sql.Blob;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.RequestBody;
 import okhttp3.ResponseBody;
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -48,12 +64,13 @@ public class MainActivity extends AppCompatActivity {
                 .build();
 
         linkAPI=retrofit.create(LinkAPI.class);
-        login();
+        //request("update");
+        request("upload");
 
-
+        textViewResult.append("Start: update request \n");
     }
 
-    private void login(){
+    private void request(String ctx){
         AuthRequest authRequest=new AuthRequest("client_credentials","y2wE8CZn8gvnbE77ZxxfwezRRbjllvW5","app-validator");
 
         Map<String,String> parameters=new HashMap<>();
@@ -67,19 +84,35 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) {
                 if(!response.isSuccessful()){
-                    textViewResult.setText("Code: "+response.code());
+                    textViewResult.append("Login failed: "+response.code());
                     return;
                 }
 
                 AuthResponse authResponse=response.body();
                 String content="";
-                content+="Token: "+authResponse.getAccess_token()+"\n";
-                content+="Expires in: "+authResponse.getExpires_in()+"\n";
-                content+="Token_type: "+authResponse.getToken_type()+"\n";
+//                content+="Token: "+authResponse.getAccess_token()+"\n";
+//                content+="Expires in: "+authResponse.getExpires_in()+"\n";
+//                content+="Token_type: "+authResponse.getToken_type()+"\n";
+                Calendar calendar = Calendar.getInstance();
+                Date currentTime = calendar.getTime();
+                calendar.add(Calendar.SECOND, authResponse.getExpires_in());
+                SimpleDateFormat simpleDateFormat =new  SimpleDateFormat("YYYY-MM-dd HH:mm:ss");
+                content= simpleDateFormat.format(calendar.getTime());
 
-                textViewResult.append(content);
+                textViewResult.append("token expires on: "+content+"\n");
 
-                update(authResponse);
+                switch (ctx){
+                    case "update":
+                        update(authResponse);
+                        break;
+                    case "upload":
+                        uploadFile(authResponse);
+                        break;
+                    default:
+                        break;
+                }
+
+
 
             }
 
@@ -89,6 +122,97 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
+
+    private void uploadFile(AuthResponse authResponse) {
+        Map<String,String> header=new HashMap<>();
+        header.put("Authorization","Bearer "+authResponse.getAccess_token());
+
+        Calendar calendar = Calendar.getInstance();
+        Date currentTime = calendar.getTime();
+        SimpleDateFormat simpleDateFormat =new  SimpleDateFormat("YYYY-MM-dd");
+
+
+        String filename="";
+        String fileDate="";
+        byte[] file=null;
+
+        String path=context.getFilesDir() + File.separator +"Log"+ File.separator;
+        File directory = new File(path);
+        File[] files = directory.listFiles();
+        if(files.length>0) {
+            Log.d("NN", "" + files.length);
+            Log.d("NN", files[0].getName());
+
+            filename = files[0].getName();
+            fileDate=simpleDateFormat.format(currentTime);
+        }
+
+
+
+
+
+        String uri=path+filename;
+
+        File file1= new File(uri);
+
+        Uri fileUri= FileUtils.getUri(file1);
+
+        textViewResult.append("upload file: "+filename+" "+fileDate+" "+uri +"\n");
+
+        UploadRequest uploadRequest= new UploadRequest(
+                "123456",
+                "Wayfarer6",
+                FileType.LOG,
+                filename,
+                fileDate,
+                file
+        );
+
+        Map<String,RequestBody> partMap=new HashMap<>();
+        partMap.put("deviceSn",createPartFromString(uploadRequest.getDeviceSn()));
+        partMap.put("modelId",createPartFromString(uploadRequest.getModelId()));
+        partMap.put("fileType",createPartFromString(uploadRequest.getFileType().toString()));
+        partMap.put("fileName",createPartFromString(uploadRequest.getFileName()));
+        partMap.put("fileName",createPartFromString(uploadRequest.getFileDate()));
+
+
+        Call<ResponseBody> call= linkAPI.uploadFile(header,
+                partMap,
+                prepareFilePart("log",fileUri));
+
+        call.enqueue(new Callback<ResponseBody>() {
+            @Override
+            public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+                if(response.isSuccessful()){
+                    textViewResult.append("upload done\n");
+                }
+                else {
+                    textViewResult.append("resp error: "+response.code()+"\n");
+                }
+            }
+
+            @Override
+            public void onFailure(Call<ResponseBody> call, Throwable t) {
+                textViewResult.append("resp error: "+t.getMessage()+"\n");
+            }
+        });
+
+
+
+    }
+
+    private RequestBody createPartFromString(String descriptionString){
+        return RequestBody.create(MultipartBody.FORM,descriptionString);
+    }
+
+    private MultipartBody.Part prepareFilePart(String partName,Uri fileUri){
+        File file=FileUtils.getFile(this,fileUri);
+
+        RequestBody requestFile=RequestBody.create(MediaType.parse("plain/text"),file);
+
+        return MultipartBody.Part.createFormData(partName,file.getName(),requestFile);
+    }
+
 
     private void update(AuthResponse authResponse) {
 
@@ -115,7 +239,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onResponse(Call<UpdateResponse> call, Response<UpdateResponse> response) {
                 if(!response.isSuccessful()){
-                    textViewResult.setText("Code: "+response.code());
+                    textViewResult.append("Code: "+response.code()+"\n");
                     return;
                 }
 
@@ -205,6 +329,9 @@ public class MainActivity extends AppCompatActivity {
                     }
                     else
                         textViewResult.append("download error\n");
+
+
+
 
                 }
 
