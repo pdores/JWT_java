@@ -19,7 +19,6 @@ import retrofit2.http.HeaderMap;
 import retrofit2.http.Multipart;
 import retrofit2.http.POST;
 import retrofit2.http.Part;
-import retrofit2.http.PartMap;
 import retrofit2.http.Query;
 
 public interface LinkAPI {
@@ -42,8 +41,12 @@ public interface LinkAPI {
     @Multipart
     @POST("device/v1/api/device-file")
     Call<ResponseBody> uploadFile(@HeaderMap Map<String,String> headers,
-                                  @PartMap Map<String,RequestBody> data,
-                                  @Part MultipartBody.Part log
+                                  @Part("deviceSn") RequestBody deviceSn,
+                                  @Part("modelId") RequestBody modelId,
+                                  @Part("fileType") Integer fileType,
+                                  @Part("fileName") RequestBody fileName,
+                                  @Part("fileDate") RequestBody fileDate,
+                                  @Part MultipartBody.Part file
                                   );
 
 

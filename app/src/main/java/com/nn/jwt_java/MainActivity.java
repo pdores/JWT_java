@@ -34,8 +34,10 @@ import java.util.Map;
 
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
+import okhttp3.OkHttpClient;
 import okhttp3.RequestBody;
 import okhttp3.ResponseBody;
+import okhttp3.logging.HttpLoggingInterceptor;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -58,9 +60,16 @@ public class MainActivity extends AppCompatActivity {
 
         textViewResult=findViewById(R.id.text_view_result);
 
+        //create okhttp
+        OkHttpClient.Builder okBuilder= new OkHttpClient.Builder();
+        HttpLoggingInterceptor logging= new HttpLoggingInterceptor();
+        logging.setLevel(HttpLoggingInterceptor.Level.BODY);
+        okBuilder.addInterceptor(logging);
+
         Retrofit retrofit=new Retrofit.Builder()
                 .baseUrl("https://frontend.endpoints.hf-gcp-dev.cloud.goog/")
                 .addConverterFactory(GsonConverterFactory.create())
+                .client(okBuilder.build())
                 .build();
 
         linkAPI=retrofit.create(LinkAPI.class);
@@ -129,7 +138,7 @@ public class MainActivity extends AppCompatActivity {
 
         Calendar calendar = Calendar.getInstance();
         Date currentTime = calendar.getTime();
-        SimpleDateFormat simpleDateFormat =new  SimpleDateFormat("YYYY-MM-dd");
+        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
 
 
         String filename="";
@@ -144,10 +153,17 @@ public class MainActivity extends AppCompatActivity {
             Log.d("NN", files[0].getName());
 
             filename = files[0].getName();
-            fileDate=simpleDateFormat.format(currentTime);
+            fileDate=format.format(currentTime);
+
+            textViewResult.append("Date:"+fileDate);
         }
 
-
+        try {
+            file= Files.readAllBytes(files[0].toPath());
+        } catch (IOException e) {
+           e.printStackTrace();
+           return;
+        }
 
 
 
@@ -168,17 +184,16 @@ public class MainActivity extends AppCompatActivity {
                 file
         );
 
-        Map<String,RequestBody> partMap=new HashMap<>();
-        partMap.put("deviceSn",createPartFromString(uploadRequest.getDeviceSn()));
-        partMap.put("modelId",createPartFromString(uploadRequest.getModelId()));
-        partMap.put("fileType",createPartFromString(uploadRequest.getFileType().toString()));
-        partMap.put("fileName",createPartFromString(uploadRequest.getFileName()));
-        partMap.put("fileName",createPartFromString(uploadRequest.getFileDate()));
+
 
 
         Call<ResponseBody> call= linkAPI.uploadFile(header,
-                partMap,
-                prepareFilePart("log",fileUri));
+                createPartFromString(uploadRequest.getDeviceSn()),
+                createPartFromString(uploadRequest.getModelId()),
+                uploadRequest.getFileType(),
+                createPartFromString(uploadRequest.getFileName()),
+                createPartFromString(uploadRequest.getFileDate()),
+                prepareFilePart("file",fileUri));
 
         call.enqueue(new Callback<ResponseBody>() {
             @Override
