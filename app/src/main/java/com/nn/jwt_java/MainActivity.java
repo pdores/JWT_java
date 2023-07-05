@@ -7,13 +7,18 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.util.Log;
+import android.widget.Switch;
 import android.widget.TextView;
 
+import com.google.gson.Gson;
 import com.nn.jwt_java.model.AuthRequest;
 import com.nn.jwt_java.model.AuthResponse;
 import com.nn.jwt_java.model.ConfigFileUpdates;
 import com.nn.jwt_java.model.ConfigFiles;
 import com.nn.jwt_java.model.DownloadRequest;
+import com.nn.jwt_java.model.Event;
+import com.nn.jwt_java.model.EventRequest;
+import com.nn.jwt_java.model.EventShiftStart;
 import com.nn.jwt_java.model.UpdateRequest;
 import com.nn.jwt_java.model.UpdateResponse;
 import com.nn.jwt_java.model.UploadRequest;
@@ -74,9 +79,10 @@ public class MainActivity extends AppCompatActivity {
 
         linkAPI=retrofit.create(LinkAPI.class);
         //request("update");
-        request("upload");
+        //request("upload");
+        request("event");
 
-        textViewResult.append("Start: update request \n");
+        textViewResult.append("Start: request \n");
     }
 
     private void request(String ctx){
@@ -117,6 +123,9 @@ public class MainActivity extends AppCompatActivity {
                     case "upload":
                         uploadFile(authResponse);
                         break;
+                    case "event":
+                        sendEvent(authResponse,EventType.ShiftStart);
+                        break;
                     default:
                         break;
                 }
@@ -132,10 +141,92 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void uploadFile(AuthResponse authResponse) {
+    private void sendEvent(AuthResponse authResponse,Integer eventType) {
+        //add autentication
         Map<String,String> header=new HashMap<>();
         header.put("Authorization","Bearer "+authResponse.getAccess_token());
 
+        //date format
+        Calendar calendar = Calendar.getInstance();
+        Date currentTime = calendar.getTime();
+        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+
+
+        switch(eventType)
+        {
+            case EventType.ShiftStart:
+
+                EventShiftStart eventShiftStart=new EventShiftStart(
+                        EventType.ShiftStart,
+                        format.format(currentTime),
+                        "123456_12345_202307041600_1",
+                        "id-operator-hf",
+                        "12345"
+                );
+
+                String data=new Gson().toJson(eventShiftStart);
+
+                Log.d("NN",data);
+
+                ArrayList<Event> eventArrayList= new ArrayList<>();
+
+
+
+                Event event=new Event(
+                        EventType.ShiftStart,
+                        format.format(currentTime),
+                        "id-operator-hf",
+                        data
+                );
+                eventArrayList.add(event);
+
+
+
+                EventRequest eventRequest= new EventRequest(
+                        "123456",
+                        "Wayfarer6",
+                        eventArrayList
+                );
+
+                Call<ResponseBody> call= linkAPI.sendEvent(header,eventRequest);
+                call.enqueue(new Callback<ResponseBody>() {
+                    @Override
+                    public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+                        if(response.isSuccessful()){
+                            textViewResult.append("evento registrado: "+response.code()+"\n");
+
+
+                        }
+                        else {
+                            textViewResult.append("resp error: "+response.code()+"\n");
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Call<ResponseBody> call, Throwable t) {
+                        textViewResult.append("resp error: "+t.getMessage()+"\n");
+                    }
+                });
+
+
+            break;
+            default:
+            break;
+
+        }
+
+
+
+
+
+    }
+
+    private void uploadFile(AuthResponse authResponse) {
+        //add autentication
+        Map<String,String> header=new HashMap<>();
+        header.put("Authorization","Bearer "+authResponse.getAccess_token());
+
+        //date format
         Calendar calendar = Calendar.getInstance();
         Date currentTime = calendar.getTime();
         SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
@@ -145,7 +236,8 @@ public class MainActivity extends AppCompatActivity {
         String fileDate="";
         byte[] file=null;
 
-        String path=context.getFilesDir() + File.separator +"Log"+ File.separator;
+        //get files to upload
+        String path=context.getFilesDir() + File.separator +"Upload"+ File.separator;
         File directory = new File(path);
         File[] files = directory.listFiles();
         if(files.length>0) {
@@ -155,25 +247,20 @@ public class MainActivity extends AppCompatActivity {
             filename = files[0].getName();
             fileDate=format.format(currentTime);
 
-            textViewResult.append("Date:"+fileDate);
+           // textViewResult.append("Date:"+fileDate);
         }
-
-        try {
-            file= Files.readAllBytes(files[0].toPath());
-        } catch (IOException e) {
-           e.printStackTrace();
-           return;
+        else{
+            textViewResult.append("No files to upload:");
+            return;
         }
 
 
 
-        String uri=path+filename;
-
-        File file1= new File(uri);
+        File file1= new File(path+filename);
 
         Uri fileUri= FileUtils.getUri(file1);
 
-        textViewResult.append("upload file: "+filename+" "+fileDate+" "+uri +"\n");
+
 
         UploadRequest uploadRequest= new UploadRequest(
                 "123456",
@@ -181,7 +268,7 @@ public class MainActivity extends AppCompatActivity {
                 FileType.LOG,
                 filename,
                 fileDate,
-                file
+                fileUri
         );
 
 
@@ -193,13 +280,15 @@ public class MainActivity extends AppCompatActivity {
                 uploadRequest.getFileType(),
                 createPartFromString(uploadRequest.getFileName()),
                 createPartFromString(uploadRequest.getFileDate()),
-                prepareFilePart("file",fileUri));
+                prepareFilePart("file",uploadRequest.getFile()));
 
         call.enqueue(new Callback<ResponseBody>() {
             @Override
             public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
                 if(response.isSuccessful()){
-                    textViewResult.append("upload done\n");
+                    textViewResult.append("upload done code:"+response.code()+"\n");
+                    Boolean deleted= file1.delete();
+                    textViewResult.append("file deleted: "+deleted+"\n");
                 }
                 else {
                     textViewResult.append("resp error: "+response.code()+"\n");

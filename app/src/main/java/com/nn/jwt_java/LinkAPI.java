@@ -1,6 +1,7 @@
 package com.nn.jwt_java;
 
 import com.nn.jwt_java.model.AuthResponse;
+import com.nn.jwt_java.model.EventRequest;
 import com.nn.jwt_java.model.UpdateRequest;
 import com.nn.jwt_java.model.UpdateResponse;
 import com.nn.jwt_java.model.UploadRequest;
@@ -48,6 +49,10 @@ public interface LinkAPI {
                                   @Part("fileDate") RequestBody fileDate,
                                   @Part MultipartBody.Part file
                                   );
+
+
+    @POST("device/v1/api/event")
+    Call<ResponseBody> sendEvent(@HeaderMap Map<String,String> headers, @Body EventRequest eventRequest);
 
 
 

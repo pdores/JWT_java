@@ -1,5 +1,7 @@
 package com.nn.jwt_java.model;
 
+import android.net.Uri;
+
 import java.sql.Blob;
 
 public class UploadRequest {
@@ -9,7 +11,7 @@ public class UploadRequest {
     private Integer fileType;
     private String fileName;
     private String fileDate;
-    private byte[] file;
+    private Uri file;
 
     public String getDeviceSn() {
         return deviceSn;
@@ -31,11 +33,11 @@ public class UploadRequest {
         return fileDate;
     }
 
-    public byte[] getFile() {
+    public Uri getFile() {
         return file;
     }
 
-    public UploadRequest(String deviceSn, String modelId, Integer fileType, String fileName, String fileDate, byte[] file) {
+    public UploadRequest(String deviceSn, String modelId, Integer fileType, String fileName, String fileDate, Uri file) {
         this.deviceSn = deviceSn;
         this.modelId = modelId;
         this.fileType = fileType;
